@@ -2,7 +2,7 @@ pipeline {
     agent any
     environment {
         COMPOSE_FILE = 'Application/docker-compose.yml'
-        DOCKERHUB_CREDENTIALS = 'dockerhub-creds'  // Jenkins credential ID for Docker Hub (Username + Password)
+        DOCKERHUB_CREDENTIALS = 'dockerhub'  // Jenkins credential ID for Docker Hub (Username + Password)
         DOCKERHUB_USER = 'vasanth31r'              // your Docker Hub username
     }
 
