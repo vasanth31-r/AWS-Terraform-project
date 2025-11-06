@@ -3,8 +3,11 @@ pipeline {
 
     environment {
         COMPOSE_FILE = 'Application/docker-compose.yml'
-        DOCKERHUB_CREDENTIALS = 'dockerhub'  // Jenkins credentials ID for Docker Hub (Username + Password)
-        DOCKERHUB_USER = 'vasanth31r'        // Your Docker Hub username
+        AWS_REGION = 'ap-south-1'
+        AWS_ACCOUNT_ID = '425816768212'          // Replace with your AWS account ID
+        ECR_REPO = 'app_repo'       // Name of your ECR repository
+        IMAGE_TAG = "${BUILD_NUMBER}"             // Image tag based on build number
+        IMAGE_NAME = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
     }
 
     stages {
@@ -35,41 +38,39 @@ pipeline {
                     
                     while read image; do
                         echo "Scanning $image..."
-                        trivy image --no-progress --severity HIGH,CRITICAL "$image" || true
+                        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --no-progress --severity HIGH,CRITICAL "$image" || true
                     done < images.txt
                 '''
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('AWS ECR Login') {
             steps {
-                echo 'Pushing application image to Docker Hub...'
-                withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS}", usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                echo 'Logging into AWS ECR...'
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
                     sh '''
-                        set -e
-                        echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
-                        
-                        IMAGE_NAME=${DOCKERHUB_USER}/application_flask_app
-                        BUILD_TAG=${BUILD_NUMBER:-latest}
-
-                        docker tag application_flask_app:latest $IMAGE_NAME:$BUILD_TAG
-                        docker tag application_flask_app:latest $IMAGE_NAME:latest
-                        
-                        echo "Pushing $IMAGE_NAME:$BUILD_TAG..."
-                        docker push $IMAGE_NAME:$BUILD_TAG
-                        docker push $IMAGE_NAME:latest
-
-                        docker logout
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                     '''
                 }
+            }
+        }
+
+        stage('Tag and Push to ECR') {
+            steps {
+                echo 'Tagging and pushing image to AWS ECR...'
+                sh '''
+                    docker tag application_flask_app:latest ${IMAGE_NAME}
+                    echo "Pushing ${IMAGE_NAME}..."
+                    docker push ${IMAGE_NAME}
+                '''
             }
         }
     }
 
     post {
         always {
-            echo 'Application and database are running in background.'
-            echo 'Access the Flask app at: http://localhost:5000'
+            echo 'Containers are running in background.'
+            echo 'Flask app image is pushed to AWS ECR.'
         }
     }
 }
