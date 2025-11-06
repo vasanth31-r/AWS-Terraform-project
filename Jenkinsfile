@@ -1,47 +1,42 @@
 pipeline {
     agent any
 
+    environment {
+        COMPOSE_FILE = 'docker-compose.yml'
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                git branch: 'main', url: 'https://github.com/vasanthrathinam/AWS-Terraform-project.git'
             }
         }
 
-        stage('Build Docker Compose') {
+        stage('Build and Run Containers') {
             steps {
-                sh 'docker compose build'
+                echo 'Starting application and database...'
+                sh 'docker-compose up -d --build'
             }
         }
 
-        stage('Run Trivy Scan') {
+        stage('Trivy Scan') {
             steps {
-                echo 'Running Trivy scans on images...'
-                // List all compose images
-                script {
-                    def images = sh(script: "docker compose images --quiet", returnStdout: true).trim().split('\n')
-                    for (img in images) {
-                        echo "Scanning image: ${img}"
-                        // Run scan but ignore exit code (so pipeline won't fail)
-                        sh "trivy image --no-progress --exit-code 0 ${img} || true"
-                    }
-                }
-            }
-        }
-
-        stage('Deploy Locally') {
-            steps {
-                echo 'Starting application with Docker Compose...'
-                sh 'docker compose up -d'
+                echo 'Running Trivy scan on images...'
+                sh '''
+                    docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "application_flask_app|mysql" > images.txt || true
+                    while read image; do
+                        echo "Scanning $image..."
+                        trivy image --no-progress --severity HIGH,CRITICAL $image || true
+                    done < images.txt
+                '''
             }
         }
     }
 
     post {
         always {
-            echo 'Stopping containers...'
-            sh 'docker compose down || true'
+            echo 'Application and database are running in background.'
+            echo 'Access the Flask app at: http://localhost:5000'
         }
     }
 }
-
