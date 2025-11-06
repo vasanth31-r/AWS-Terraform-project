@@ -2,6 +2,8 @@ pipeline {
     agent any
     environment {
         COMPOSE_FILE = 'Application/docker-compose.yml'
+        DOCKERHUB_CREDENTIALS = 'dockerhub-creds'  // Jenkins credential ID for Docker Hub (Username + Password)
+        DOCKERHUB_USER = 'vasanth31r'              // your Docker Hub username
     }
 
     stages {
@@ -33,6 +35,25 @@ pipeline {
                         trivy image --no-progress --severity HIGH,CRITICAL $image || true
                     done < images.txt
                 '''
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                echo 'Pushing images to Docker Hub...'
+                withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS}", usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                    sh '''
+                        echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
+                        
+                        docker tag application_flask_app:latest ${DOCKERHUB_USER}/application_flask_app:latest
+                        docker tag mysql:latest ${DOCKERHUB_USER}/mysql:latest
+                        
+                        docker push ${DOCKERHUB_USER}/application_flask_app:latest
+                        docker push ${DOCKERHUB_USER}/mysql:latest
+                        
+                        docker logout
+                    '''
+                }
             }
         }
     }
