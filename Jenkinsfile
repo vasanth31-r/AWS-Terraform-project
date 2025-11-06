@@ -8,9 +8,8 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo 'Cloning repository...'
                 // ✅ Add credentialsId for GitHub authentication
-                git branch: 'main',
+                git branch: 'master',
                     url: 'https://github.com/vasanthrathinam/AWS-Terraform-project.git',
                     credentialsId: 'github-token'  // <-- use your Jenkins credential ID
             }
