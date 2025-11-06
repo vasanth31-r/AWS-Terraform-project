@@ -7,7 +7,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', 
+                git branch: 'master', 
                     url: 'https://github.com/vasanth31-r/AWS-Terraform-project.git', 
                     credentialsId: 'github-token'
             }
