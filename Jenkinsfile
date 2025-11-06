@@ -10,7 +10,7 @@ pipeline {
             steps {
                 // ✅ Add credentialsId for GitHub authentication
                 git branch: 'master',
-                    url: 'https://github.com/vasanthrathinam/AWS-Terraform-project.git',
+                    url: 'https://github.com/vasanth31-r/AWS-Terraform-project.git',
                     credentialsId: 'github-token'  // <-- use your Jenkins credential ID
             }
         }
