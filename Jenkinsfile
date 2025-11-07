@@ -8,7 +8,7 @@ pipeline {
         ECR_REPO       = 'project-tf-repo'
         IMAGE_TAG      = "${BUILD_NUMBER}"
         IMAGE_NAME     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-        INSTANCE_ID    = 'i-03ab64c2e9047ab19' 
+        INSTANCE_ID    = 'i-03ab64c2e9047ab19'
     }
 
     stages {
@@ -75,18 +75,19 @@ pipeline {
                 echo 'Deploying latest image to private EC2 instance via SSM...'
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
                     sh '''
+                        set -e
+                        DEPLOY_COMMAND="echo Pulling latest image: ${IMAGE_NAME} && \
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com && \
+                        docker pull ${IMAGE_NAME} && \
+                        docker stop flask_app || true && \
+                        docker rm flask_app || true && \
+                        docker run -d --name flask_app -p 8080:8080 ${IMAGE_NAME}"
+
                         aws ssm send-command \
                             --instance-ids "${INSTANCE_ID}" \
                             --document-name "AWS-RunShellScript" \
                             --comment "Deploy Flask App container from ECR" \
-                            --parameters commands="sudo bash -c '
-                                echo Pulling latest image: ${IMAGE_NAME}
-                                aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-                                docker pull ${IMAGE_NAME}
-                                docker stop flask_app || true
-                                docker rm flask_app || true
-                                docker run -d --name flask_app -p 8080:8080 ${IMAGE_NAME}
-                            '" \
+                            --parameters "commands=[\\"sudo bash -c '${DEPLOY_COMMAND}'\\"]" \
                             --region ${AWS_REGION}
                     '''
                 }
