@@ -1,14 +1,15 @@
 pipeline {
     agent any
 
-    environment {
-        COMPOSE_FILE = 'Application/docker-compose.yml'
-        AWS_REGION = 'ap-south-1'
-        AWS_ACCOUNT_ID = '425816768212'          // Replace with your AWS account ID
-        ECR_REPO = 'app_repo'       // Name of your ECR repository
-        IMAGE_TAG = "${BUILD_NUMBER}"             // Image tag based on build number
-        IMAGE_NAME = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-    }
+            environment {
+            COMPOSE_FILE   = 'Application/docker-compose.yml'
+            AWS_REGION     = 'ap-south-1'
+            AWS_ACCOUNT_ID = '425816768212'
+            ECR_REPO       = 'app_repo'
+            IMAGE_TAG      = "${BUILD_NUMBER}"
+            IMAGE_NAME     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+        }
+
 
     stages {
         stage('Checkout') {
@@ -44,18 +45,18 @@ pipeline {
             }
         }
 
-        stage('AWS ECR Login') {
+                stage('AWS ECR Login') {
             steps {
                 echo 'Logging into AWS ECR...'
-                withAWS(credentials: 'aws-creds', region: 'ap-south-1') {
-                sh '''
-                    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com
-                    docker tag myapp:latest <ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/myapp:latest
-                    docker push <ACCOUNT_ID>.dkr.ap-south-1-1.amazonaws.com/myapp:latest
+                withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
+                    sh '''
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                     '''
                 }
             }
         }
+
 
         stage('Tag and Push to ECR') {
             steps {
