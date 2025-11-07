@@ -8,7 +8,7 @@ pipeline {
         ECR_REPO       = 'project-tf-repo'
         IMAGE_TAG      = "${BUILD_NUMBER}"
         IMAGE_NAME     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-        INSTANCE_ID    = 'i-0abcd1234ef567890'  // ⚠️ Replace with your actual private EC2 instance ID
+        INSTANCE_ID    = 'i-03ab64c2e9047ab19' 
     }
 
     stages {
