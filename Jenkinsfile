@@ -1,21 +1,22 @@
 pipeline {
     agent any
 
-            environment {
-            COMPOSE_FILE   = 'Application/docker-compose.yml'
-            AWS_REGION     = 'ap-south-1'
-            AWS_ACCOUNT_ID = '425816768212'
-            ECR_REPO       = 'project-tf-repo'
-            IMAGE_TAG      = "${BUILD_NUMBER}"
-            IMAGE_NAME     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-        }
-
+    environment {
+        COMPOSE_FILE   = 'Application/docker-compose.yml'
+        AWS_REGION     = 'ap-south-1'
+        AWS_ACCOUNT_ID = '425816768212'
+        ECR_REPO       = 'project-tf-repo'
+        IMAGE_TAG      = "${BUILD_NUMBER}"
+        IMAGE_NAME     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+        INSTANCE_ID    = 'i-0abcd1234ef567890'  // ⚠️ Replace with your actual private EC2 instance ID
+    }
 
     stages {
+
         stage('Checkout') {
             steps {
-                git branch: 'master', 
-                    url: 'https://github.com/vasanth31-r/AWS-Terraform-project.git', 
+                git branch: 'master',
+                    url: 'https://github.com/vasanth31-r/AWS-Terraform-project.git',
                     credentialsId: 'github-token'
             }
         }
@@ -36,16 +37,17 @@ pipeline {
                 echo 'Running Trivy scan on built images...'
                 sh '''
                     docker images --format "{{.Repository}}:{{.Tag}}" | grep "application_flask_app" > images.txt || true
-                    
+
                     while read image; do
                         echo "Scanning $image..."
-                        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --no-progress --severity HIGH,CRITICAL "$image" || true
+                        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image \
+                        --no-progress --severity HIGH,CRITICAL "$image" || true
                     done < images.txt
                 '''
             }
         }
 
-                stage('AWS ECR Login') {
+        stage('AWS ECR Login') {
             steps {
                 echo 'Logging into AWS ECR...'
                 withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
@@ -57,7 +59,6 @@ pipeline {
             }
         }
 
-
         stage('Tag and Push to ECR') {
             steps {
                 echo 'Tagging and pushing image to AWS ECR...'
@@ -68,12 +69,40 @@ pipeline {
                 '''
             }
         }
+
+        stage('Deploy to EC2 via SSM') {
+            steps {
+                echo 'Deploying latest image to private EC2 instance via SSM...'
+                withAWS(credentials: 'aws-creds', region: "${AWS_REGION}") {
+                    sh '''
+                        aws ssm send-command \
+                            --instance-ids "${INSTANCE_ID}" \
+                            --document-name "AWS-RunShellScript" \
+                            --comment "Deploy Flask App container from ECR" \
+                            --parameters commands="sudo bash -c '
+                                echo Pulling latest image: ${IMAGE_NAME}
+                                aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                                docker pull ${IMAGE_NAME}
+                                docker stop flask_app || true
+                                docker rm flask_app || true
+                                docker run -d --name flask_app -p 8080:8080 ${IMAGE_NAME}
+                            '" \
+                            --region ${AWS_REGION}
+                    '''
+                }
+            }
+        }
     }
 
     post {
         always {
-            echo 'Containers are running in background.'
-            echo 'Flask app image is pushed to AWS ECR.'
+            echo 'Pipeline completed.'
+        }
+        success {
+            echo '✅ Deployment successful. Flask app is running on EC2.'
+        }
+        failure {
+            echo '❌ Deployment failed. Check Jenkins logs or SSM command history.'
         }
     }
 }
