@@ -8,7 +8,7 @@ pipeline {
         ECR_REPO       = 'project-tf-repo'
         IMAGE_TAG      = "${BUILD_NUMBER}"
         IMAGE_NAME     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
-        INSTANCE_ID    = 'i-0f208fadc3f42664f'
+        INSTANCE_ID    = 'i-0dfa5215fe36caea3'
     }
 
     stages {
